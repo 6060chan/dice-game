@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>搖骰子遊戲</title>
+<style>
+/* ===== 主題變數（T13） ===== */
+:root {
+  --bg: #0b0e1f;
+  --bg-glow: radial-gradient(120% 80% at 50% -10%, #1b2150 0%, #0b0e1f 60%);
+  --panel: #141837;
+  --panel-border: #2a3168;
+  --text: #eef1ff;
+  --muted: #8b92c0;
+  --accent: #22d3ee;
+  --accent2: #f472b6;
+  --gold: #fbbf24;
+  --die-size: clamp(64px, 22vw, 96px);
+  --radius: 14px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; }
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  color: var(--text);
+  background: var(--bg-glow) var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 16px max(16px, env(safe-area-inset-bottom));
+  min-height: 100dvh;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  font-family: inherit;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+.app-header {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.app-title {
+  font-size: 1.5rem;
+  letter-spacing: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.sound-toggle {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  font-size: 1.1rem;
+  color: var(--text);
+}
+
+.app-main {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ===== 模式分頁 ===== */
+.mode-tabs {
+  display: flex;
+  gap: 8px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  padding: 6px;
+}
+
+.mode-tab {
+  flex: 1;
+  padding: 10px 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.mode-tab.is-active {
+  background: linear-gradient(90deg, rgba(34,211,238,.2), rgba(244,114,182,.2));
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.mode-tab:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ===== 骰數控制 ===== */
+.dice-count-control,
+.bet-control,
+.battle-score {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+}
+
+.label { color: var(--muted); font-size: 0.95rem; }
+
+.stepper { display: flex; align-items: center; gap: 14px; }
+
+.stepper button {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
+  background: #1b2048;
+  color: var(--accent);
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.stepper button:disabled { opacity: .4; cursor: not-allowed; }
+
+.count-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  min-width: 28px;
+  text-align: center;
+  color: var(--gold);
+}
+
+/* ===== 猜大小下注 ===== */
+.bet-control[hidden],
+.battle-score[hidden] {
+  display: none;
+}
+
+.bet-options { display: flex; gap: 10px; }
+
+.bet-option {
+  width: 56px;
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
+  background: #1b2048;
+  color: var(--text);
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.bet-option.is-active.small { background: var(--accent); color: #06222b; border-color: var(--accent); }
+.bet-option.is-active.big { background: var(--accent2); color: #2b0620; border-color: var(--accent2); }
+.bet-option:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ===== 對戰計分板 ===== */
+.battle-score { justify-content: center; gap: 18px; }
+
+.score-item { color: var(--muted); font-size: 1rem; }
+.score-item b { color: var(--gold); font-size: 1.3rem; margin-left: 4px; }
+.score-vs { color: var(--muted); }
+
+/* ===== 骰子舞台 ===== */
+.dice-stage {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: clamp(10px, 4vw, 22px);
+  min-height: calc(var(--die-size) * 1.25);
+  padding: 8px 0;
+}
+
+.dice-row {
+  display: flex;
+  gap: clamp(10px, 3.5vw, 20px);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ===== 結果區 ===== */
+.result-panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  min-height: 96px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.result-main { font-size: 1.25rem; font-weight: 700; }
+.result-main.win { color: var(--gold); }
+.result-main.lose { color: var(--accent2); }
+.result-sub { color: var(--muted); font-size: 0.9rem; }
+
+/* ===== 擲骰按鈕 ===== */
+.roll-btn {
+  padding: 16px 0;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: #06222b;
+  background: linear-gradient(90deg, var(--accent), #67e8f9);
+  box-shadow: 0 0 18px rgba(34,211,238,.35);
+}
+
+.roll-btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+
+/* ===== 3D 骰子（T14~T16） ===== */
+.die {
+  width: var(--die-size);
+  height: var(--die-size);
+  perspective: 600px;
+}
+
+.die-cube {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.die-face {
+  position: absolute;
+  inset: 0;
+  border-radius: calc(var(--die-size) * 0.14);
+  background:
+    linear-gradient(145deg, #fdfaf0 0%, #f0ead6 55%, #e2d9bd 100%);
+  box-shadow:
+    inset 0 0 calc(var(--die-size) * 0.06) rgba(120, 100, 40, 0.25),
+    0 0 calc(var(--die-size) * 0.08) rgba(0, 0, 0, 0.45);
+  backface-visibility: hidden;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  padding: calc(var(--die-size) * 0.12);
+  gap: 0;
+}
+
+.die-face[data-face="1"] { transform: rotateY(0deg) translateZ(calc(var(--die-size) / 2)); }
+.die-face[data-face="2"] { transform: rotateX(90deg) translateZ(calc(var(--die-size) / 2)); }
+.die-face[data-face="3"] { transform: rotateY(90deg) translateZ(calc(var(--die-size) / 2)); }
+.die-face[data-face="4"] { transform: rotateY(-90deg) translateZ(calc(var(--die-size) / 2)); }
+.die-face[data-face="5"] { transform: rotateX(-90deg) translateZ(calc(var(--die-size) / 2)); }
+.die-face[data-face="6"] { transform: rotateY(180deg) translateZ(calc(var(--die-size) / 2)); }
+
+.pip {
+  width: calc(var(--die-size) * 0.16);
+  height: calc(var(--die-size) * 0.16);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #3a4a7a, #16203a 70%);
+  box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.5);
+  align-self: center;
+  justify-self: center;
+}
+
+.die-face[data-face="1"] .pip:nth-child(1) { grid-area: 2 / 2; }
+.die-face[data-face="2"] .pip:nth-child(1) { grid-area: 1 / 1; }
+.die-face[data-face="2"] .pip:nth-child(2) { grid-area: 3 / 3; }
+.die-face[data-face="3"] .pip:nth-child(1) { grid-area: 1 / 1; }
+.die-face[data-face="3"] .pip:nth-child(2) { grid-area: 2 / 2; }
+.die-face[data-face="3"] .pip:nth-child(3) { grid-area: 3 / 3; }
+.die-face[data-face="4"] .pip:nth-child(1) { grid-area: 1 / 1; }
+.die-face[data-face="4"] .pip:nth-child(2) { grid-area: 1 / 3; }
+.die-face[data-face="4"] .pip:nth-child(3) { grid-area: 3 / 1; }
+.die-face[data-face="4"] .pip:nth-child(4) { grid-area: 3 / 3; }
+.die-face[data-face="5"] .pip:nth-child(1) { grid-area: 1 / 1; }
+.die-face[data-face="5"] .pip:nth-child(2) { grid-area: 1 / 3; }
+.die-face[data-face="5"] .pip:nth-child(3) { grid-area: 2 / 2; }
+.die-face[data-face="5"] .pip:nth-child(4) { grid-area: 3 / 1; }
+.die-face[data-face="5"] .pip:nth-child(5) { grid-area: 3 / 3; }
+.die-face[data-face="6"] .pip:nth-child(1) { grid-area: 1 / 1; }
+.die-face[data-face="6"] .pip:nth-child(2) { grid-area: 1 / 3; }
+.die-face[data-face="6"] .pip:nth-child(3) { grid-area: 2 / 1; }
+.die-face[data-face="6"] .pip:nth-child(4) { grid-area: 2 / 3; }
+.die-face[data-face="6"] .pip:nth-child(5) { grid-area: 3 / 1; }
+.die-face[data-face="6"] .pip:nth-child(6) { grid-area: 3 / 3; }
+
+/* ===== 對戰雙組 ===== */
+.dice-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.group-label {
+  color: var(--muted);
+  font-size: 0.85rem;
+  letter-spacing: 2px;
+}
+
+/* ===== 減少動效（T22） ===== */
+@media (prefers-reduced-motion: reduce) {
+  .die-cube { transition: none !important; }
+}
+
+/* ===== 響應式細節（T33~T34） ===== */
+@media (max-width: 360px) {
+  :root { --die-size: clamp(52px, 18vw, 64px); }
+  .dice-stage,
+  .dice-row,
+  .dice-group { gap: 6px; }
+  .result-main { font-size: 1.05rem; }
+}
+
+@media (min-width: 720px) {
+  :root { --die-size: 104px; }
+  .app-main { max-width: 560px; }
+  .result-panel { min-height: 110px; }
+}
+
+@media (prefers-color-scheme: light) {
+  body { color-scheme: dark; }
+}
+</style>
+</head>
+<body>
+  <header class="app-header">
+    <h1 class="app-title">🎲 搖骰子</h1>
+    <button id="sound-toggle" class="sound-toggle" type="button" aria-label="音效開關" title="音效開關">🔊</button>
+  </header>
+
+  <main class="app-main">
+    <nav class="mode-tabs" aria-label="遊戲模式">
+      <button class="mode-tab is-active" type="button" data-mode="free" aria-label="純擲骰模式">純擲骰</button>
+      <button class="mode-tab" type="button" data-mode="bet" aria-label="猜大小模式">猜大小</button>
+      <button class="mode-tab" type="button" data-mode="battle" aria-label="比大小對戰模式">對戰</button>
+    </nav>
+
+    <section class="dice-count-control" aria-label="骰子數量設定">
+      <span class="label">骰子數量</span>
+      <div class="stepper">
+        <button id="dice-minus" type="button" aria-label="減少骰子數量">−</button>
+        <span id="dice-count-value" class="count-value">1</span>
+        <button id="dice-plus" type="button" aria-label="增加骰子數量">＋</button>
+      </div>
+    </section>
+
+    <section id="bet-control" class="bet-control" hidden aria-label="猜大小下注">
+      <span class="label">下注</span>
+      <div class="bet-options">
+        <button id="bet-small" class="bet-option" type="button" aria-label="押小">小</button>
+        <button id="bet-big" class="bet-option" type="button" aria-label="押大">大</button>
+      </div>
+    </section>
+
+    <section id="battle-score" class="battle-score" hidden aria-label="對戰計分板">
+      <span class="score-item">你 <b id="score-player">0</b></span>
+      <span class="score-vs">:</span>
+      <span class="score-item">電腦 <b id="score-cpu">0</b></span>
+    </section>
+
+    <section class="dice-stage" id="dice-stage" aria-label="骰子舞台"></section>
+
+    <section class="result-panel" id="result-panel" role="status" aria-live="polite">
+      <p class="result-main" id="result-main">點擊「擲骰」開始</p>
+      <p class="result-sub" id="result-sub"></p>
+    </section>
+
+    <button id="roll-btn" class="roll-btn" type="button" aria-label="擲骰">擲骰</button>
+  </main>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ===== 狀態層（spec §2） ===== */
+  var state = {
+    mode: 'free',
+    diceCount: 1,
+    isRolling: false,
+    betChoice: null,
+    battleOver: false,
+    soundOn: true,
+    records: {
+      bet: { win: 0, lose: 0, push: 0 },
+      battle: { gameWin: 0, gameLose: 0, playerWin: 0, cpuWin: 0 }
+    }
+  };
+
+  function setState(patch) {
+    var k;
+    for (k in patch) {
+      if (Object.prototype.hasOwnProperty.call(patch, k)) state[k] = patch[k];
+    }
+  }
+
+  /* ===== DOM 參考 ===== */
+  var els = {
+    tabs: document.querySelectorAll('.mode-tab'),
+    diceMinus: document.getElementById('dice-minus'),
+    dicePlus: document.getElementById('dice-plus'),
+    diceCountValue: document.getElementById('dice-count-value'),
+    betControl: document.getElementById('bet-control'),
+    betSmall: document.getElementById('bet-small'),
+    betBig: document.getElementById('bet-big'),
+    battleScore: document.getElementById('battle-score'),
+    scorePlayer: document.getElementById('score-player'),
+    scoreCpu: document.getElementById('score-cpu'),
+    stage: document.getElementById('dice-stage'),
+    resultMain: document.getElementById('result-main'),
+    resultSub: document.getElementById('result-sub'),
+    rollBtn: document.getElementById('roll-btn'),
+    soundToggle: document.getElementById('sound-toggle')
+  };
+
+  /* ===== 基本互動（T05~T08） ===== */
+
+  function setLocked(locked) {
+    state.isRolling = locked;
+    els.rollBtn.disabled = locked;
+    els.diceMinus.disabled = locked || state.diceCount <= 1;
+    els.dicePlus.disabled = locked || state.diceCount >= 3;
+    for (var i = 0; i < els.tabs.length; i++) {
+      els.tabs[i].disabled = locked;
+    }
+    els.betSmall.disabled = locked;
+    els.betBig.disabled = locked;
+  }
+
+  function setMode(mode) {
+    if (state.isRolling) return;
+    setState({ mode: mode });
+    for (var i = 0; i < els.tabs.length; i++) {
+      els.tabs[i].classList.toggle('is-active', els.tabs[i].dataset.mode === mode);
+    }
+    els.betControl.hidden = mode !== 'bet';
+    els.battleScore.hidden = mode !== 'battle';
+    renderDice();
+    if (mode === 'bet' && state.betChoice === null) {
+      els.resultMain.textContent = '請先選擇大或小';
+      els.resultSub.textContent = betRuleHint(state.diceCount);
+    } else if (mode === 'bet') {
+      els.resultMain.textContent = state.betChoice === 'big' ? '押大' : '押小';
+      els.resultSub.textContent = betRuleHint(state.diceCount);
+    } else if (mode === 'battle') {
+      els.resultMain.textContent = '點擊「擲骰」與電腦對戰';
+      els.resultSub.textContent = '';
+    } else {
+      els.resultMain.textContent = '點擊「擲骰」開始';
+      els.resultSub.textContent = '';
+    }
+    updateRollBtn();
+  }
+
+  function setDiceCount(n) {
+    if (state.isRolling) return;
+    setState({ diceCount: Math.min(3, Math.max(1, n)) });
+    els.diceCountValue.textContent = state.diceCount;
+    els.diceMinus.disabled = state.isRolling || state.diceCount <= 1;
+    els.dicePlus.disabled = state.isRolling || state.diceCount >= 3;
+    renderDice();
+    if (state.mode === 'bet') els.resultSub.textContent = betRuleHint(state.diceCount);
+  }
+
+  function selectBet(choice) {
+    if (state.mode !== 'bet' || state.isRolling) return;
+    setState({ betChoice: choice });
+    els.betSmall.classList.toggle('is-active', choice === 'small');
+    els.betBig.classList.toggle('is-active', choice === 'big');
+    els.resultMain.textContent = choice === 'big' ? '押大' : '押小';
+    els.resultSub.textContent = betRuleHint(state.diceCount);
+    updateRollBtn();
+  }
+
+  function toggleSound() {
+    setState({ soundOn: !state.soundOn });
+    els.soundToggle.textContent = state.soundOn ? '🔊' : '🔇';
+    ensureAudio();
+  }
+
+  function updateRollBtn() {
+    var disabled = state.isRolling || (state.mode === 'bet' && state.betChoice === null);
+    els.rollBtn.disabled = disabled;
+  }
+
+  /* ===== 引擎層（spec §3，T09~T12） ===== */
+
+  function roll() {
+    var values = [];
+    for (var i = 0; i < state.diceCount; i++) {
+      values.push(Math.floor(Math.random() * 6) + 1);
+    }
+    return values;
+  }
+
+  function sum(values) {
+    var total = 0;
+    for (var i = 0; i < values.length; i++) total += values[i];
+    return total;
+  }
+
+  function isTriplet(values) {
+    return values.length === 3 && values[0] === values[1] && values[1] === values[2];
+  }
+
+  function judgeBet(values) {
+    var total = sum(values);
+    if (isTriplet(values)) return { kind: 'triplet', total: total };
+    if (state.diceCount === 2 && total === 7) return { kind: 'push', total: total };
+    var smallLimit = Math.floor(3.5 * state.diceCount);
+    return { kind: total <= smallLimit ? 'small' : 'big', total: total };
+  }
+
+  function judgeBattle(playerValues, cpuValues) {
+    var p = sum(playerValues);
+    var c = sum(cpuValues);
+    if (p === c) return { winner: 'tie', p: p, c: c };
+    return { winner: p > c ? 'player' : 'cpu', p: p, c: c };
+  }
+
+  function betRuleHint(n) {
+    if (n === 1) return '1 粒：總和 1-3 小、4-6 大';
+    if (n === 2) return '2 粒：總和 2-6 小、8-12 大、總和 7 和局';
+    return '3 粒：總和 4-10 小、11-17 大、豹子通殺';
+  }
+
+  /* ===== 骰子 DOM 生成器（T17） ===== */
+
+  var PIPS = {
+    1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6
+  };
+
+  function buildDie() {
+    var die = document.createElement('div');
+    die.className = 'die';
+    var cube = document.createElement('div');
+    cube.className = 'die-cube';
+    var face, pip, j;
+    for (var v = 1; v <= 6; v++) {
+      face = document.createElement('div');
+      face.className = 'die-face';
+      face.setAttribute('data-face', String(v));
+      for (j = 0; j < PIPS[v]; j++) {
+        pip = document.createElement('span');
+        pip.className = 'pip';
+        face.appendChild(pip);
+      }
+      cube.appendChild(face);
+    }
+    die.appendChild(cube);
+    return die;
+  }
+
+  function buildGroup(label) {
+    var group = document.createElement('div');
+    group.className = 'dice-group';
+    if (label) {
+      var lab = document.createElement('span');
+      lab.className = 'group-label';
+      lab.textContent = label;
+      group.appendChild(lab);
+    }
+    var row = document.createElement('div');
+    row.className = 'dice-row';
+    group.appendChild(row);
+    return { group: group, row: row };
+  }
+
+  function renderDice() {
+    els.stage.innerHTML = '';
+    var i, count = state.diceCount;
+    if (state.mode === 'battle') {
+      var pg = buildGroup('你');
+      var cg = buildGroup('電腦');
+      for (i = 0; i < count; i++) pg.row.appendChild(buildDie());
+      for (i = 0; i < count; i++) cg.row.appendChild(buildDie());
+      els.stage.appendChild(pg.group);
+      els.stage.appendChild(cg.group);
+    } else {
+      var row = document.createElement('div');
+      row.className = 'dice-row';
+      for (i = 0; i < count; i++) row.appendChild(buildDie());
+      els.stage.appendChild(row);
+    }
+  }
+
+  /* ===== 動畫層（spec §5，T18~T22） ===== */
+
+  var FACE_ROTATION = {
+    1: 'rotateX(0deg) rotateY(0deg)',
+    2: 'rotateX(-90deg) rotateY(0deg)',
+    3: 'rotateX(0deg) rotateY(-90deg)',
+    4: 'rotateX(0deg) rotateY(90deg)',
+    5: 'rotateX(90deg) rotateY(0deg)',
+    6: 'rotateX(0deg) rotateY(180deg)'
+  };
+
+  var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function spinTo(cube, value, delay) {
+    var target = FACE_ROTATION[value];
+    if (reducedMotion) {
+      cube.style.transform = target;
+      return Promise.resolve();
+    }
+    var rx = (Math.random() * 720 + 360) * (Math.random() < 0.5 ? -1 : 1);
+    var ry = (Math.random() * 720 + 360) * (Math.random() < 0.5 ? -1 : 1);
+    var rz = (Math.random() * 360) * (Math.random() < 0.5 ? -1 : 1);
+    var anim = cube.animate([
+      { transform: 'rotateX(' + rx + 'deg) rotateY(' + ry + 'deg) rotateZ(' + rz + 'deg)' },
+      { transform: 'rotateX(' + rx * 0.9 + 'deg) rotateY(' + ry * 0.9 + 'deg) rotateZ(' + rz * 0.9 + 'deg) translate3d(0, 6px, 0)' },
+      { transform: target }
+    ], {
+      duration: 900,
+      delay: delay,
+      easing: 'cubic-bezier(0.25, 0.8, 0.35, 1)',
+      fill: 'forwards'
+    });
+    return anim.finished.then(function () {
+      cube.style.transform = target;
+    }).catch(function () {});
+  }
+
+  function shakeDie(die, delay) {
+    if (reducedMotion) return Promise.resolve();
+    var anim = die.animate([
+      { transform: 'translate3d(0, 0, 0)' },
+      { transform: 'translate3d(-2px, -3px, 0)' },
+      { transform: 'translate3d(3px, 2px, 0)' },
+      { transform: 'translate3d(-3px, 3px, 0)' },
+      { transform: 'translate3d(2px, -2px, 0)' },
+      { transform: 'translate3d(0, 0, 0)' }
+    ], { duration: 700, delay: delay, easing: 'ease-in-out' });
+    return anim.finished.catch(function () {});
+  }
+
+  function rollGroup(groupEl, values) {
+    var cubes = groupEl.querySelectorAll('.die-cube');
+    var promises = [];
+    for (var i = 0; i < cubes.length; i++) {
+      var delay = i * 100;
+      promises.push(spinTo(cubes[i], values[i], delay));
+      promises.push(shakeDie(cubes[i].parentElement, delay));
+    }
+    return Promise.all(promises);
+  }
+
+  function playSound() {
+    if (!state.soundOn) return;
+    audioShake();
+    var settles = setTimeout(audioSettle, 850);
+    window.__settleTimer = settles;
+  }
+
+  /* ===== 三模式流程（T23~T28） ===== */
+
+  function setResult(main, sub, cls) {
+    els.resultMain.textContent = main;
+    els.resultSub.textContent = sub || '';
+    els.resultMain.className = 'result-main' + (cls ? ' ' + cls : '');
+  }
+
+  function showRecord() {
+    var r = state.records.bet;
+    return '戰績 勝 ' + r.win + ' 敗 ' + r.lose + ' 和 ' + r.push;
+  }
+
+  function rollFree() {
+    var values = roll();
+    var row = els.stage.querySelector('.dice-row');
+    return rollGroup(row, values).then(function () {
+      setResult(values.join(' · '), '總和 ' + sum(values) + '（範圍 ' + state.diceCount + '～' + state.diceCount * 6 + '）');
+    });
+  }
+
+  function rollBet() {
+    var values = roll();
+    var row = els.stage.querySelector('.dice-row');
+    return rollGroup(row, values).then(function () {
+      var j = judgeBet(values);
+      var r = state.records.bet;
+      var dices = values.join(' · ');
+      if (j.kind === 'triplet') {
+        r.lose += 1;
+        setResult('豹子！大小通殺，你輸了', dices + '｜總和 ' + j.total + '｜' + showRecord(), 'lose');
+      } else if (j.kind === 'push') {
+        r.push += 1;
+        setResult('和局（總和 7）', dices + '｜總和 7｜' + showRecord());
+      } else {
+        var won = j.kind === state.betChoice;
+        if (won) r.win += 1; else r.lose += 1;
+        setResult(won ? '你贏了！' : '你輸了', dices + '｜總和 ' + j.total + '（' + (j.kind === 'big' ? '大' : '小') + '）｜' + showRecord(), won ? 'win' : 'lose');
+      }
+    });
+  }
+
+  function rollBattle() {
+    var groups = els.stage.querySelectorAll('.dice-group');
+    if (groups.length < 2) return Promise.resolve();
+    var playerGroup = groups[0];
+    var cpuGroup = groups[1];
+
+    function playRound() {
+      var pv = roll();
+      var cv = roll();
+      return rollGroup(playerGroup, pv).then(function () {
+        return rollGroup(cpuGroup, cv);
+      }).then(function () {
+        return judgeBattle(pv, cv);
+      });
+    }
+
+    function resolve(j) {
+      var r = state.records.battle;
+      if (j.winner === 'tie') {
+        setResult('平手！自動重擲…', '你 ' + j.p + ' vs 電腦 ' + j.c + '｜比分 你 ' + r.playerWin + ' : ' + r.cpuWin + ' 電腦');
+        return new Promise(function (done) {
+          setTimeout(function () {
+            playSound();
+            playRound().then(function (j2) { done(resolve(j2)); });
+          }, 700);
+        });
+      }
+      if (j.winner === 'player') r.playerWin += 1; else r.cpuWin += 1;
+      els.scorePlayer.textContent = r.playerWin;
+      els.scoreCpu.textContent = r.cpuWin;
+      if (r.playerWin >= 2 || r.cpuWin >= 2) {
+        var playerWon = r.playerWin >= 2;
+        if (playerWon) r.gameWin += 1; else r.gameLose += 1;
+        setState({ battleOver: true });
+        els.rollBtn.textContent = '再來一場';
+        var rate = Math.round(r.gameWin / (r.gameWin + r.gameLose) * 100);
+        setResult(playerWon ? '你以 ' + r.playerWin + ' : ' + r.cpuWin + ' 獲勝！' : '電腦以 ' + r.cpuWin + ' : ' + r.playerWin + ' 獲勝',
+          '本局 你 ' + j.p + ' vs 電腦 ' + j.c + '｜勝率 ' + rate + '%（' + r.gameWin + ' 勝 ' + r.gameLose + ' 敗）',
+          playerWon ? 'win' : 'lose');
+      } else {
+        setResult(j.winner === 'player' ? '本局你贏！' : '本局電腦贏！',
+          '你 ' + j.p + ' vs 電腦 ' + j.c + '｜比分 你 ' + r.playerWin + ' : ' + r.cpuWin + ' 電腦');
+      }
+    }
+
+    return playRound().then(resolve);
+  }
+
+  function onRollClick() {
+    if (state.isRolling) return;
+    if (state.mode === 'bet' && state.betChoice === null) return;
+    if (state.mode === 'battle' && state.battleOver) {
+      setState({ battleOver: false });
+      state.records.battle.playerWin = 0;
+      state.records.battle.cpuWin = 0;
+      els.scorePlayer.textContent = '0';
+      els.scoreCpu.textContent = '0';
+      els.rollBtn.textContent = '擲骰';
+      setResult('再來一場！', '');
+      renderDice();
+    }
+    ensureAudio();
+    playSound();
+    setLocked(true);
+    var promise = state.mode === 'battle' ? rollBattle()
+      : state.mode === 'bet' ? rollBet()
+      : rollFree();
+    promise.then(function () {
+      setLocked(false);
+      if (state.mode === 'bet') updateRollBtn();
+    }).catch(function () {
+      setLocked(false);
+      updateRollBtn();
+    });
+  }
+
+  /* ===== 音效層（spec §7，T29~T32） ===== */
+
+  var audioCtx = null;
+  var audioMaster = null;
+  var noiseBuffer = null;
+
+  function ensureAudio() {
+    if (!audioCtx) {
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        audioMaster = audioCtx.createGain();
+        audioMaster.gain.value = state.soundOn ? 1 : 0;
+        audioMaster.connect(audioCtx.destination);
+        var len = audioCtx.sampleRate;
+        noiseBuffer = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+        var data = noiseBuffer.getChannelData(0);
+        for (var i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+      } catch (e) {
+        audioCtx = null;
+      }
+    }
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    if (audioMaster) {
+      audioMaster.gain.value = state.soundOn ? 1 : 0;
+    }
+  }
+
+  function playNoiseBurst(startTime, duration, freq) {
+    if (!audioCtx || !noiseBuffer) return;
+    var src = audioCtx.createBufferSource();
+    src.buffer = noiseBuffer;
+    var filter = audioCtx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = freq || 1800;
+    filter.Q.value = 0.9;
+    var gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.0001, startTime);
+    gain.gain.exponentialRampToValueAtTime(0.5, startTime + 0.004);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+    src.connect(filter);
+    filter.connect(gain);
+    gain.connect(audioMaster);
+    src.start(startTime, 0, duration);
+    src.stop(startTime + duration + 0.02);
+  }
+
+  function audioShake() {
+    if (!audioCtx) return;
+    var t = audioCtx.currentTime + 0.02;
+    var count = 8 + Math.floor(Math.random() * 5);
+    for (var i = 0; i < count; i++) {
+      playNoiseBurst(t + i * (0.035 + Math.random() * 0.05), 0.03, 1500 + Math.random() * 1200);
+    }
+  }
+
+  function audioSettle() {
+    if (!audioCtx) return;
+    var t = audioCtx.currentTime + 0.01;
+    playNoiseBurst(t, 0.02, 900);
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(160, t);
+    osc.frequency.exponentialRampToValueAtTime(55, t + 0.09);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.4, t + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.11);
+    osc.connect(gain);
+    gain.connect(audioMaster);
+    osc.start(t);
+    osc.stop(t + 0.13);
+  }
+
+  function init() {
+    for (var i = 0; i < els.tabs.length; i++) {
+      els.tabs[i].addEventListener('click', function () { setMode(this.dataset.mode); });
+    }
+    els.diceMinus.addEventListener('click', function () { setDiceCount(state.diceCount - 1); });
+    els.dicePlus.addEventListener('click', function () { setDiceCount(state.diceCount + 1); });
+    els.betSmall.addEventListener('click', function () { selectBet('small'); });
+    els.betBig.addEventListener('click', function () { selectBet('big'); });
+    els.soundToggle.addEventListener('click', toggleSound);
+    els.rollBtn.addEventListener('click', onRollClick);
+
+    setState({ diceCount: 1 });
+    els.diceCountValue.textContent = state.diceCount;
+    els.diceMinus.disabled = true;
+    setMode('free');
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
